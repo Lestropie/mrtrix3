@@ -1,0 +1,94 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2008-2019 the MRtrix3 contributors.
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Covered Software is provided under this License on an "as is"
+# basis, without warranty of any kind, either expressed, implied, or
+# statutory, including, without limitation, warranties that the
+# Covered Software is free of defects, merchantable, fit for a
+# particular purpose or non-infringing.
+# See the Mozilla Public License v. 2.0 for more details.
+#
+# For more details, see http://www.mrtrix.org/.
+
+from collections import namedtuple
+
+
+PROJECTIONS = ['Sag', 'Cor', 'Ax']
+
+
+
+def usage(cmdline): #pylint: disable=unused-variable
+  cmdline.set_author('Robert E. Smith (robert.smith@florey.edu.au)')
+  cmdline.set_synopsis('Generate images of brain masks for visual quality assessment')
+  cmdline.add_argument('inputs', nargs='+', help='A list of input brain mask images')
+  cmdline.add_argument('output', help='The output of the command')
+
+
+
+# TODO Crop all images by themselves prior to collecting stats
+# Save together: index, originating file name, scratch file name, scratch file header
+InputMask = namedtuple('InputMask', 'index input_path scratch_path header')
+
+
+
+
+def execute(): #pylint: disable=unused-variable
+  from mrtrix3 import app, image, path, run
+  app.check_output_path(app.ARGS.output)
+
+  app.make_scratch_dir()
+  progress = app.ProgressBar('Importing masks', len(app.ARGS.inputs))
+  inputs = []
+  for index, entry in enumerate(app.ARGS.inputs):
+    scratch_path = str(index) + '.mif'
+    run.command('mrgrid ' + path.from_user(entry) + ' crop ' + path.to_scratch(scratch_path)
+                + ' -mask ' + path.from_user(entry))
+    inputs.append(InputMask(index, entry, scratch_path, image.Header(path.to_scratch(scratch_path, False))))
+    progress.increment()
+  progress.done()
+  app.goto_scratch_dir()
+
+  # We want to know:
+  # - The largest image width for each of axial, sagittal, coronal
+  # - The largest image height for any projection
+  max_axis_sizes = [max(entry.header.size()[axis] for entry in inputs) for axis in range(0, 3)]
+  app.debug(str(max_axis_sizes))
+  height = max(max_axis_sizes[1:3])
+  app.debug(str(height))
+  # Sagittal, coronal, axial
+  # (results of averaging over axes 0, 1, 2)
+  projection_widths = [max_axis_sizes[0], max_axis_sizes[1], max_axis_sizes[0]]
+  app.debug(str(projection_widths))
+
+  progress = app.ProgressBar('Compiling across ' + str(len(app.ARGS.inputs)) + ' mask images', len(app.ARGS.inputs))
+  all_images_list = []
+  for entry in inputs:
+    input_image_list = []
+    for axis in range(0, 3):
+      init_image_path = str(entry.index) + '_' + PROJECTIONS[axis] + '_init.png'
+      final_image_path = str(entry.index) + '_' + PROJECTIONS[axis] + '.png'
+      run.command('mrmath ' + entry.scratch_path + ' mean -axis ' + str(axis) + ' - | '
+                  + 'mrcolour - pet ' + init_image_path + ' -lower 0 -upper 1')
+      run.command('convert ' + init_image_path
+                  + ' -gravity center'
+                  + ' -background blue'
+                  + ' -extent ' + str(projection_widths[axis]) + 'x' + str(height) + ' '
+                  + final_image_path)
+      input_image_list.append(final_image_path)
+    cat_image_path = str(entry.index) + '.png'
+    run.command('montage -mode concatenate -tile x1 ' + ' '.join(input_image_list) + ' ' + cat_image_path)
+    all_images_list.append(cat_image_path)
+    progress.increment()
+  run.command('montage -mode concatenate -tile 1x ' + ' '.join(all_images_list) + ' ' + path.from_user(app.ARGS.output))
+  progress.done()
+
+
+
+# Execute the script
+import mrtrix3
+mrtrix3.execute() #pylint: disable=no-member
