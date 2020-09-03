@@ -17,9 +17,10 @@ ENV PATH="/opt/mrtrix3/bin:/opt/fsl/bin:$PATH"
 RUN apt-get -qq update \
     && apt-get install -yq --no-install-recommends \
           $OTHER_TEMP_DEPS \
+          bc \
           ca-certificates \
           dc \
-          g++ \
+          g++-7 \
           git \
           libeigen3-dev \
           libfftw3-dev \
