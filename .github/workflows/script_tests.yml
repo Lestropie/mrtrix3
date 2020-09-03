@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     name: Executes script tests in Docker
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
     - name: Execute
       uses: MRtrix3/script_test_action@master
       with:
