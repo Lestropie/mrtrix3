@@ -1,0 +1,13 @@
+name: script_tests
+description: Execute all script tests, including those with external dependencies, if merging to master
+
+runs:
+  using: docker
+  image: .github/script_tests/Dockerfile
+  inputs:
+    commitish:  # id of input
+      description: 'MRtrix3 git commitish to check out for testing'
+      required: true
+  args:
+    - ${{ inputs.commitish }}
+
