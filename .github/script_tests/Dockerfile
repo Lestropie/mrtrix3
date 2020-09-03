@@ -5,7 +5,7 @@ ARG MRTRIX3_CONFIGURE_FLAGS=""
 # Command-line arguments for `./build`
 ARG MRTRIX3_BUILD_FLAGS=""
 # Temporary dependencies for other software packages
-ARG OTHER_TEMP_DEPS="ca-certificates curl file wget"
+ARG OTHER_TEMP_DEPS="curl file wget"
 
 # Prevent programs like `apt-get` from presenting interactive prompts.
 ARG DEBIAN_FRONTEND="noninteractive"
@@ -17,6 +17,7 @@ ENV PATH="/opt/mrtrix3/bin:/opt/fsl/bin:$PATH"
 RUN apt-get -qq update \
     && apt-get install -yq --no-install-recommends \
           $OTHER_TEMP_DEPS \
+          ca-certificates \
           dc \
           g++ \
           git \
