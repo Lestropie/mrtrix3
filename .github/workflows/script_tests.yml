@@ -14,7 +14,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
     - name: Execute
-      uses: ./
+      uses: .github/script_tests/action.yml
       with:
         commitish: ${GITHUB_REF##*/}
 
