@@ -1,0 +1,16 @@
+name: script_tests
+description: Execute all script tests, including those with external dependencies, if merging to master
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - master
+
+runs:
+  using: docker
+  image: .github/Dockerfile_scripts
+  args:
+    - ${{ ${GITHUB_REF##*/} }}
+
+    
