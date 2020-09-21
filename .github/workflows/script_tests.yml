@@ -14,5 +14,5 @@ jobs:
     - name: Execute
       uses: MRtrix3/script_test_action@master
       with:
-        commitish: ${{github.ref}}
+        commitish: ${{github.head_ref}}
 
