@@ -69,6 +69,8 @@ Options
 
 - **-json_import file** Import image header information from an associated JSON file (may be necessary to determine phase encoding information)
 
+- **-topup_config file** Specify the configuration file to be provided to topup
+
 - **-topup_options " TopupOptions"** Manually provide additional command-line options to the topup command (provide a string within quotation marks that contains at least one space, even if only passing a single command-line option to topup)
 
 - **-eddy_options " EddyOptions"** Manually provide additional command-line options to the eddy command (provide a string within quotation marks that contains at least one space, even if only passing a single command-line option to eddy)
