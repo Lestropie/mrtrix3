@@ -153,7 +153,9 @@ def execute(): #pylint: disable=unused-variable
 
   topup_default_config_path = os.path.join(fsl_path, 'etc', 'flirtsch', 'b02b0.cnf')
   topup_manual_options = ''
-  topup_custom_config_path = path.from_user(app.ARGS.topup_config, False)
+  topup_custom_config_path = path.from_user(app.ARGS.topup_config, False) \
+                             if app.ARGS.topup_config \
+                             else None
   if app.ARGS.topup_options:
     topup_manual_options_split = app.ARGS.topup_options.strip().split()
     if any(any(item.startswith('--' + option + '=') for option in ['imain', 'datain', 'out', 'fout', 'iout']) for item in topup_manual_options_split):
@@ -164,8 +166,8 @@ def execute(): #pylint: disable=unused-variable
     elif topup_custom_config_path_list:
       if topup_custom_config_path:
         raise MRtrixError('Cannot both specify -topup_config, and have "--config=" included within -topup_options')
-      topup_custom_config_path = topup_custom_config_path[0]
-      if not os.path.isfile(path.from_user(topup_custom_config_path, False)):
+      topup_custom_config_path = path.from_user(topup_custom_config_path[0], False)
+      if not os.path.isfile(topup_custom_config_path):
         raise MRtrixError('Could not find file "' + topup_custom_config_path + '" specified via -topup_options "--config="')
       topup_manual_options_split = [item for item in topup_manual_options_split if not item.startswith('--config=')]
       topup_manual_options_split.append('--config=topup.cnf')
@@ -205,7 +207,7 @@ def execute(): #pylint: disable=unused-variable
   if app.ARGS.eddy_mask:
     run.command('mrconvert ' + path.from_user(app.ARGS.eddy_mask) + ' ' + path.to_scratch('eddy_mask.mif') + ' -datatype bit')
   if topup_custom_config_path:
-    run.function(shutil.copyfile, path.from_user(topup_custom_config_path, False), path.to_scratch('topup.cnf', False))
+    run.function(shutil.copyfile, topup_custom_config_path, path.to_scratch('topup.cnf', False))
 
   app.goto_scratch_dir()
 
