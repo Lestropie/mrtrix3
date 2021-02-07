@@ -9,7 +9,7 @@ on:
 jobs:
   script_tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 7200
+    timeout-minutes: 14400
     name: Executes script tests in Docker
     steps:
     - name: Execute
