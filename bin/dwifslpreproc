@@ -58,6 +58,7 @@ def usage(cmdline): #pylint: disable=unused-variable
   cmdline.add_argument('-se_epi', metavar=('image'), help='Provide an additional image series consisting of spin-echo EPI images, which is to be used exclusively by topup for estimating the inhomogeneity field (i.e. it will not form part of the output image series)')
   cmdline.add_argument('-align_seepi', action='store_true', help='Achieve alignment between the SE-EPI images used for inhomogeneity field estimation, and the DWIs (more information in Description section)')
   cmdline.add_argument('-json_import', metavar=('file'), help='Import image header information from an associated JSON file (may be necessary to determine phase encoding information)')
+  cmdline.add_argument('-topup_config', metavar=('file'), help='Specify the configuration file to be provided to topup')
   cmdline.add_argument('-topup_options', metavar=('" TopupOptions"'), help='Manually provide additional command-line options to the topup command (provide a string within quotation marks that contains at least one space, even if only passing a single command-line option to topup)')
   cmdline.add_argument('-eddy_options', metavar=('" EddyOptions"'), help='Manually provide additional command-line options to the eddy command (provide a string within quotation marks that contains at least one space, even if only passing a single command-line option to eddy)')
   cmdline.add_argument('-eddy_mask', metavar=('image'), help='Provide a processing mask to use for eddy, instead of having dwifslpreproc generate one internally using dwi2mask')
@@ -113,9 +114,6 @@ def execute(): #pylint: disable=unused-variable
     raise MRtrixError('Environment variable FSLDIR is not set; please run appropriate FSL configuration script')
 
   if not pe_design == 'None':
-    topup_config_path = os.path.join(fsl_path, 'etc', 'flirtsch', 'b02b0.cnf')
-    if not os.path.isfile(topup_config_path):
-      raise MRtrixError('Could not find necessary default config file for FSL topup command (expected location: ' + topup_config_path + ')')
     topup_cmd = fsl.exe_name('topup')
     applytopup_cmd = fsl.exe_name('applytopup')
 
@@ -153,6 +151,29 @@ def execute(): #pylint: disable=unused-variable
           raise MRtrixError('Target for eddy QC output exists, and is not a directory (use -force to override)')
 
 
+  topup_default_config_path = os.path.join(fsl_path, 'etc', 'flirtsch', 'b02b0.cnf')
+  topup_manual_options = ''
+  topup_custom_config_path = path.from_user(app.ARGS.topup_config, False) \
+                             if app.ARGS.topup_config \
+                             else None
+  if app.ARGS.topup_options:
+    topup_manual_options_split = app.ARGS.topup_options.strip().split()
+    if any(any(item.startswith('--' + option + '=') for option in ['imain', 'datain', 'out', 'fout', 'iout']) for item in topup_manual_options_split):
+      raise MRtrixError('Content provided via -topup_options cannot include core inputs / outputs')
+    topup_custom_config_path_list = [item[len('--config='):] for item in topup_manual_options_split if item.startswith('--config=')]
+    if len(topup_custom_config_path_list) > 1:
+      raise MRtrixError('Contents of -topup_options cannot specify more than one config file')
+    elif topup_custom_config_path_list:
+      if topup_custom_config_path:
+        raise MRtrixError('Cannot both specify -topup_config, and have "--config=" included within -topup_options')
+      topup_custom_config_path = path.from_user(topup_custom_config_path[0], False)
+      if not os.path.isfile(topup_custom_config_path):
+        raise MRtrixError('Could not find file "' + topup_custom_config_path + '" specified via -topup_options "--config="')
+      topup_manual_options_split = [item for item in topup_manual_options_split if not item.startswith('--config=')]
+      topup_manual_options_split.append('--config=topup.cnf')
+      topup_manual_options = ' '.join(topup_manual_options_split)
+
+
   eddy_manual_options = []
   if app.ARGS.eddy_options:
     # Initially process as a list; we'll convert back to a string later
@@ -185,6 +206,8 @@ def execute(): #pylint: disable=unused-variable
     run.command('mrconvert ' + path.from_user(app.ARGS.se_epi) + ' ' + path.to_scratch('se_epi.mif'))
   if app.ARGS.eddy_mask:
     run.command('mrconvert ' + path.from_user(app.ARGS.eddy_mask) + ' ' + path.to_scratch('eddy_mask.mif') + ' -datatype bit')
+  if topup_custom_config_path:
+    run.function(shutil.copyfile, topup_custom_config_path, path.to_scratch('topup.cnf', False))
 
   app.goto_scratch_dir()
 
@@ -690,6 +713,15 @@ def execute(): #pylint: disable=unused-variable
       se_epi_path = None
       se_epi_header = None
 
+  # Have made final decision on whether or not topup will run;
+  #   only now can we check the presence of the default config file if need be
+  if do_topup and not topup_custom_config_path and not os.path.isfile(topup_default_config_path):
+    raise MRtrixError('Could not find default config file for FSL topup command'
+                      ' (expected location: ' + topup_default_config_path + ')')
+
+
+
+
 
   # If the first b=0 volume in the DWIs is in fact not the first volume (i.e. index zero), we're going to
   #   manually place it at the start of the DWI volumes when they are input to eddy, so that the
@@ -787,10 +819,11 @@ def execute(): #pylint: disable=unused-variable
     app.cleanup(se_epi_path)
 
     # Run topup
-    topup_manual_options = ''
-    if app.ARGS.topup_options:
-      topup_manual_options = ' ' + app.ARGS.topup_options.strip()
-    topup_output = run.command(topup_cmd + ' --imain=topup_in.nii --datain=topup_datain.txt --out=field --fout=field_map' + fsl_suffix + ' --config=' + topup_config_path + ' --verbose' + topup_manual_options)
+    topup_output = run.command(topup_cmd
+                               + ' --imain=topup_in.nii --datain=topup_datain.txt --out=field --fout=field_map' + fsl_suffix
+                               + ('' if topup_custom_config_path else (' --config=' + topup_default_config_path))
+                               + ' --verbose'
+                               + (' ' + topup_manual_options if topup_manual_options else ''))
     with open('topup_output.txt', 'w') as topup_output_file:
       topup_output_file.write(topup_output.stdout + '\n' + topup_output.stderr)
     if app.VERBOSITY > 1:

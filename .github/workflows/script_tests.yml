@@ -1,0 +1,19 @@
+name: script_tests
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - master
+      
+jobs:
+  script_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14400
+    name: Executes script tests in Docker
+    steps:
+    - name: Execute
+      uses: MRtrix3/script_test_action@master
+      with:
+        commitish: ${{github.head_ref}}
+
